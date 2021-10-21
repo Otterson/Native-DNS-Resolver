@@ -1,0 +1,2 @@
+C:\Users\austi\Google Drive\DNSHomework2\x64\Debug\DNSHomework2.exe
+C:\Users\austi\Google Drive\DNSHomework2\x64\Debug\DNSHomework2.pdb

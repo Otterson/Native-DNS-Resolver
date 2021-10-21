@@ -1,0 +1,2 @@
+﻿  DNSHomework2.cpp
+C:\Users\austi\Google Drive\DNSHomework2\DNSHomework2.cpp(3,1): fatal error C1041: cannot open program database 'C:\Users\austi\Google Drive\DNSHomework2\Debug\vc142.pdb'; if multiple CL.EXE write to the same .PDB file, please use /FS
