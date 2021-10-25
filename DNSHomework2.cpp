@@ -153,60 +153,71 @@ void printMem(char* tracker) {
 		printf("tracker[%d] = %.2X\n", i, tracker[i]);
 	}
 }
-void printArray(char* ptr, int len, int yes)
-{
-
-	cout << "\t\t\tHERE" << endl;
-	for (int jjj = 0; jjj < len; jjj++)
-		printf("\t\tj %d c %c x %02x\n", jjj, (unsigned char)ptr[jjj], ptr[jjj]);
-	cout << endl;
-
-}
 
 
-
-
-
-int calculateJump(char* response, char* tracker) {
+int calculateJump(char* response, char* tracker, int bytes) {
 	
 	//printf("tracker[0]: %.2X", tracker[0]);
 	if ((unsigned char)tracker[0] >= 0xc0)
 	{
-		cout << "compressed\n";
 		int off = (((unsigned char)tracker[0] & 0x3f) << 8) + (unsigned char)tracker[1];	
 		char* loop_check = response + off;
+		if (off > 0 && off < 12) {
+			cout << "++\tinvalid record: jump into fixed header\n";
+			exit(EXIT_FAILURE);
+		}
+
+		if (tracker + 2 - response > bytes) {
+			cout << "++\tinvalid record: truncated jump offset\n";
+			exit(EXIT_FAILURE);
+		}
 		if ((unsigned char)loop_check[0] >= 0xc0)
 		{
-			printf("++\tinvalid record: jump loop\n");
-			WSACleanup();
+			cout << "++\tinvalid record: jump loop\n";
 			exit(EXIT_FAILURE);
 		}
 		
 		return off;
 	}
 	else {	//not compressed
-		cout << "not compressed\n";
 		return 0;
 	}
 
 	
 }
-parseReturn parse(char* buf, char* tracker) {
+
+parseReturn parse(char* buf, char* tracker, int bytes) {
 	string str;
 	int pos = 0;
-	while (tracker[0] != 0) {
-		if (tracker[0] == 0xC0) {
-			int offset = calculateJump(buf,tracker);
-			parseReturn iterim = parse(buf, tracker + offset);
+	while (true) {
+		if (tracker[0] == 0xFFFFFFC0) {
+			int offset = calculateJump(buf,tracker, bytes);
+			if (tracker+offset-buf > bytes) {
+				cout << "++\tinvalid record: jump beyond packet boundary\n";
+				exit(EXIT_FAILURE);
+			}
+			parseReturn iterim = parse(buf, buf + offset, bytes);
 			str += iterim.result;
+			tracker += 2;
 			pos += 2;
+			break;
+			
 		}
 		else {
 			int size = tracker[0];
+			if (size == 0) {
+				tracker++;
+				pos++;
+				break;
+			}
 			tracker++;
 			pos += 1;
 			char temp[256];
 			memcpy(temp, tracker, size);
+			if (tracker - buf + size >= bytes) {
+				cout << "++\tinvalid record: truncated name\n";
+				exit(EXIT_FAILURE);
+			}
 			temp[size] = 0;
 			tracker += size;
 			pos += size;
@@ -216,331 +227,131 @@ parseReturn parse(char* buf, char* tracker) {
 			}
 		}
 	}
+	
 	parseReturn ret;
 	ret.result = str;
 	ret.pos = pos;
 	return ret;
 }
 
-char* parseQuestions(char* response, char* tracker, FixedDNSheader* fdh) {
+char* parseQuestions(char* response, char* tracker, FixedDNSheader* fdh, int bytes) {
+	tracker += sizeof(FixedDNSheader);
+	printf("\t============ [questions] ============\n");
 	for (int i = 0; i < htons(fdh->questions); i++) {
-		parseReturn result = parse(response, tracker);
+		parseReturn result = parse(response, tracker, bytes);
 		tracker += result.pos;
 		string hostname = result.result;
 		QueryHeader* qh = (QueryHeader*)tracker;
 		tracker += sizeof(QueryHeader);
-		printf("\t\t%s type %d class %d\n", hostname, (int)htons(qh->qType), (int)htons(qh->qClass));
+		cout << "\t\t"<<hostname;
+		printf(" type %d class %d\n", (int)htons(qh->qType), (int)htons(qh->qClass));
 	}
+
 	return tracker;
 }
-//int parseQuestions(char* response, char* hostname, FixedDNSheader* fdh) {
-//	int tracker = 0;
-//	if (fdh->questions == 0) {
-//		return 0;
-//	}
-//	response = response + sizeof(FixedDNSheader);
-//	tracker += sizeof(FixedDNSheader);
-//
-//	printf("\t============ [questions] ============\n");
-//
-//	for (int i = 0; i < htons(fdh->questions); i++) {
-//		cout << "\t      ";
-//		char* index = response;
-//		int bytes = 0;
-//		while (true) {
-//			int string_size = response[0];
-//			response += 1;
-//			tracker++;
-//			char* slice = new char[string_size];
-//
-//			memcpy(slice, response, (int)string_size);
-//			slice[string_size] = '\0';
-//			tracker += string_size;
-//			printf("%s", slice);
-//			response += string_size;
-//			if (response[0] != 0) {
-//				cout << ".";
-//			}
-//			else {
-//				tracker++;
-//				response++;
-//				break;
-//			}
-//		}
-//		QueryHeader* qh = (QueryHeader*)(response);
-//		printf(" type %d class %d\n", (int)htons(qh->qType), (int)htons(qh->qClass));
-//		response += sizeof(QueryHeader);
-//		tracker += sizeof(QueryHeader);
-//
-//	}
-//	return tracker;
-//}
-//int parseAnswers(char* tracker, char* response, FixedDNSheader* fdh, int bytes) {
-//	int pos = 0;
-//	if (fdh->answers == 0) {
-//		return 0;
-//	}
-//	
-//	
-//	printf("\t============ [answers] ============\n");
-//
-//	for (int i = 0; i < htons(fdh->answers); i++){
-//		
-//		if (tracker - response >= bytes) {
-//			printf("\t ++invalid record: note enough records\n");			
-//		}
-//
-//		int offset = calculateJump(response, tracker);
-//		if (offset != 0) {	//compressed
-//			char* answer = response + offset;
-//			string ansString;
-//			char* index = tracker;
-//			while (index[0] != 0) {
-//				if (index[0] == 0xFFFFFFC0) {
-//					int off = calculateJump(response, index);
-//					char* answer = response + off;
-//					string qString;
-//					while (answer[0] != 0) {
-//						int size = (int)answer[0];
-//						answer++;
-//						char temp[256];
-//						memcpy(temp, answer, size);
-//						temp[size] = 0;
-//						qString += temp;
-//						answer += size;
-//						if (answer[1] != 0) {
-//							qString += ".";
-//						}
-//					}
-//					ansString += qString;
-//					index += 2;
-//					if (index[0] == 0xFFFFFFC0) {
-//						break;
-//					}
-//
-//				}
-//				else {
-//					int size = (int)index[0];
-//					index++;
-//					pos++;
-//					char temp[256];
-//					memcpy(temp, index, size);
-//					temp[size] = 0;
-//					ansString += temp;
-//					index += size;
-//					pos += size;
-//				}
-//
-//
-//				if (index[1] != 0) {
-//					ansString += ".";
-//				}
-//			}
-//		}
-//		else {	//not compressed
-//			string qString;
-//			char* index = tracker;
-//			while (index[0] != 0) {
-//				int size = (int)index[0];
-//				index++;
-//				pos++;
-//				char temp[256];
-//				memcpy(temp, index, size);
-//				temp[size] = 0;
-//				qString += temp;
-//				index += size;
-//				pos += size;
-//				if (index[1] != 0) {
-//					qString += ".";
-//				}
-//			}
-//		}
-//		DNSanswerHdr* answerHDR = (DNSanswerHdr*)(tracker);
-//		string qType;
-//		int response_type = htons(answerHDR->type);
-//		switch (response_type) {
-//		case 1:
-//			qType = "A";
-//			break;
-//		case 2:
-//			qType = "NS";
-//			break;
-//		case 5:
-//			qType = "CNAME";
-//			break;
-//		case 12:
-//			qType = "PTR";
-//			break;
-//		default: qType = "ERROR";
-//		}
-//		tracker += sizeof(DNSanswerHdr);
-//		pos += sizeof(DNSanswerHdr);
-//
-//		char saddr[MAX_DNS_SIZE];
-//
-//		if (qType == "A") {
-//			sprintf(saddr, "%d.%d.%d.%d", (unsigned char)tracker[0], (unsigned char)tracker[1], (unsigned char)tracker[2], (unsigned char)tracker[3]);
-//			tracker += 4;
-//			pos += 4;
-//		}
-//		else {
-//			string ansString;
-//			char* index = tracker;
-//			while (index[0] != 0) {
-//				if (index[0] == 0xFFFFFFC0) {
-//					int off = calculateJump(response, index);
-//					char* answer = response + off;
-//					string qString;
-//					while (answer[0] != 0) {
-//						int size = (int)answer[0];
-//						answer++;
-//						char temp[256];
-//						memcpy(temp, answer, size);
-//						temp[size] = 0;
-//						qString += temp;
-//						answer += size;
-//						if (answer[1] != 0) {
-//							qString += ".";
-//						}
-//					}
-//					ansString += qString;
-//					index+=2;
-//					if (index[0] == 0xFFFFFFC0) {
-//						break;
-//					}
-//					
-//				}
-//				else {
-//					int size = (int)index[0];
-//					index++;
-//					pos++;
-//					char temp[256];
-//					memcpy(temp, index, size);
-//					temp[size] = 0;
-//					ansString += temp;
-//					index += size;
-//					pos += size;
-//				}
-//				
-//			
-//				if (index[1] != 0) {
-//					ansString += ".";
-//				}
-//			}
-//			strcpy(saddr, ansString.c_str());
-//			tracker = index;
-//		}
-//		
-//		cout << qType << " " << saddr << " TTL = " << htons(answerHDR->ttl) << endl;
-//		printMem(tracker);
-//		
-//
-//
-//	}
-//
-//	return pos;
-//}
 
-int parseAuthority(char* tracker, char* response, FixedDNSheader* fdh, int bytes) {
-	int pos = 0;
-	if (fdh->authority == 0) {
-		return 0;
+
+char* parseRR(char* response, char* tracker, FixedDNSheader* fdh, string RRtype, int bytes) {
+	int rrcount = 0;
+	if (RRtype == "answers") {
+		rrcount = htons(fdh->answers);
 	}
-
-
-	printf("\t============ [authority] ============\n");
-
-	for (int i = 0; i < htons(fdh->answers); i++) {
-
-		if (tracker - response >= bytes) {
-			printf("\t ++invalid record: note enough records\n");
-		}
-		int bts = 0;
-
-		int offset = calculateJump(response, tracker);
-		if (offset != 0) {	//compressed
-			char* answer = response + offset;
-			string qString;
-			while (answer[0] != 0) {
-				int size = (int)answer[0];
-				answer++;
-				char temp[256];
-				memcpy(temp, answer, size);
-				temp[size] = 0;
-				qString += temp;
-				answer += size;
-				if (answer[1] != 0) {
-					qString += ".";
-				}
-			}
-			tracker += 2;
-			cout << "\t      " << qString << " ";
-		}
-		else {	//not compressed
-			string qString;
-			char* index = tracker;
-			while (index[0] != 0) {
-				int size = (int)index[0];
-				printf("%d", size);
-				index++;
-				char temp[256];
-				memcpy(temp, index, size);
-				temp[size] = 0;
-				qString += temp;
-				index += size;
-				if (index[1] != 0) {
-					qString += ".";
-				}
-			}
-			tracker += bts;
-		}
-		DNSanswerHdr* answerHDR = (DNSanswerHdr*)(tracker);
-		string qType;
-		int response_type = htons(answerHDR->type);
-		switch (response_type) {
-		case 1:
-			qType = "A";
-			break;
-		case 2:
-			qType = "NS"; 
-				break;
-		case 5:
-			qType = "CNAME";
-			break;
-		case 12:
-			qType = "PTR";
-			break;
-		default: qType = "ERROR";
-		}
-		tracker += sizeof(DNSanswerHdr);
-
-		char saddr[16];
-		sprintf(saddr, "%d.%d.%d.%d", (unsigned char)tracker[0], (unsigned char)tracker[1], (unsigned char)tracker[2], (unsigned char)tracker[3]);
-
-		cout << qType << " " << saddr << " TTL = " << htons(answerHDR->ttl) << endl;
-
-		tracker += 4;
-
-
+	else if (RRtype == "authority") {
+		rrcount = htons(fdh->authority);
 	}
-
-
-
-
-
-	return 0;
-}
-
-bool checkFDHerrors(FixedDNSheader* original, FixedDNSheader* response) {
-	if (original->ID != response->ID) {
-		printf("\t++ invalid reply: TXID mismatch, sent 0x.4x, received 0x.4X\n", original->ID, htons(response->ID));
-		return false;
-	}
-	if ((htons(response->flags) & 0x000f) == 0) {
-		printf("\tsucceeded with Rcode = %d\n", htons(response->flags) & 0x000f);
+	else if (RRtype == "additional") {
+		rrcount = htons(fdh->additional);
 	}
 	else {
-		printf("\t failed with Rcode %d\n", htons(response->flags) & 0x000f);
+		cout << "you misspelled it idiot" << endl;
+		return nullptr;
+	}
+	if (rrcount == 0) {
+		return tracker;
+	}
+	printf("\t============ [%s] ============\n", RRtype.c_str());
+	for (int i = 0; i < rrcount; i++) {
+		if (tracker - response >= bytes) {
+			cout << "++\tinvalid record: not enough records\n";
+			return nullptr;
+		}
+		parseReturn result = parse(response, tracker, bytes);
+		tracker += result.pos;
+		string query = result.result;
+
+		if (tracker + sizeof(DNSanswerHdr) - response > bytes) {
+			cout << "++\tinvalid record: truncated fixed RR header\n";
+			return nullptr;
+		}
+		//tracker--;
+		DNSanswerHdr* answerHDR = (DNSanswerHdr*)tracker;
+		tracker += sizeof(DNSanswerHdr);
+
+		
+
+		string class_string;
+		string ans;
+		bool valid = true;
+		int aClass = htons(answerHDR->type);
+		if (tracker + (int)htons(answerHDR->len) - response > bytes) {
+			cout << "++\tinvalid record: RR value strethces the answer beyond packet\n";
+			return nullptr;
+		}
+		switch (aClass) {
+		case 1:
+			class_string = "A";
+			char saddr[16];
+			sprintf(saddr, "%d.%d.%d.%d", (unsigned char)tracker[0], (unsigned char)tracker[1], (unsigned char)tracker[2], (unsigned char)tracker[3]);
+			ans = saddr;
+			tracker += 4;
+			//tracker++;
+			break;
+		case 2:
+			class_string = "NS";
+			result = parse(response, tracker, bytes);
+			tracker += result.pos;
+			ans = result.result;
+			break;
+		case 5:
+			class_string = "CNAME";
+			result = parse(response, tracker, bytes);
+			tracker += result.pos;
+			ans = result.result;
+			break;
+		case 12:
+			class_string = "PTR";
+			result = parse(response, tracker, bytes);
+			tracker += result.pos;
+			ans = result.result;
+			break;
+		default:
+			valid = false;
+		}
+		
+		//cout << "class = " << aClass << " TTL = " << (int)htons(answerHDR->ttl) << "len = " << htons(answerHDR->len) << endl;
+		if (valid) {
+			printf("\t\t%s %s %s TTL = %d\n", query.c_str(), class_string.c_str(), ans.c_str(), (int)htons(answerHDR->ttl));
+		}
+		//tracker--;
+	}
+	return tracker;
+
+}
+
+
+
+bool checkFDHerrors(FixedDNSheader* original, FixedDNSheader* response) {
+
+	if (htons(original->ID) != htons(response->ID)) {
+		printf("\t++\t invalid reply: TXID mismatch, sent 0x%.4x, received 0x%.4X\n", htons(original->ID), htons(response->ID));
+		return false;
+	}
+	int rcode = (htons(response->flags) & 0x000f);
+	if ( rcode== 0) {
+		printf("\tsucceeded with Rcode = %d\n", rcode);
+	}
+	else {
+		printf("\tfailed with Rcode %d\n", rcode);
 		return false;
 	}
 
@@ -550,33 +361,36 @@ bool checkFDHerrors(FixedDNSheader* original, FixedDNSheader* response) {
 }
 
 int main(int argc, char* argv[]){
-	/*if (argc != 3) {
+	if (argc != 3) {
 		cout << "Invalid input arguments\nFormat: ./hw2.exe <hostname/IP> <DNS IP>\n";
 		return 0;
 	}
-	char* input_hostname = argv[1];
-	char* dns_ip = argv[2];*/
+	char* hostname_arg = argv[1];
+	char* dns_ip = argv[2];
 	
+	char input_hostname[MAX_DNS_SIZE];
 	//char input_hostname[] = "www.google.com\0";
-	char* input_hostname = new char[MAX_DNS_SIZE]; 
-	//string host = "74.6.143.25\0";
-	string host = "www.amazon.com\0";
-	strcpy(input_hostname, host.c_str());
+	//char* input_hostname = new char[MAX_DNS_SIZE]; 
+	////string host = "12.190.0.107\0";
+	////string host = "google.c\0";
+	//string host = "random5.irl\0";
+	//strcpy(input_hostname, host.c_str());
 
 	//char* dns_ip = argv[2];
-	char dns_ip[] = "8.8.8.8\0";
+	//char dns_ip[] = "127.0.0.1\0";
 	int type;
-	if (inet_addr(input_hostname) != INADDR_NONE) {
+	if (inet_addr(hostname_arg) != INADDR_NONE) {
 		type = DNS_PTR;
-		string new_host = reverseLookup(input_hostname);
+		string new_host = reverseLookup(hostname_arg);
 		strcpy(input_hostname, new_host.c_str());
 	}
 	else {
 		type = DNS_A;
+		strcpy(input_hostname, hostname_arg);
 	}
 	//Build DNS query packet
 	int pkt_size = strlen(input_hostname) + 2 + sizeof(FixedDNSheader) + sizeof(QueryHeader);
-	char* buf = constructQuery(input_hostname, type, host);
+	char* buf = constructQuery(input_hostname, type, hostname_arg);
 	FixedDNSheader* fdh = (FixedDNSheader*)buf;
 	cout << "Server:    " << dns_ip << endl;
 	cout << "********************************" << endl;
@@ -640,7 +454,9 @@ int main(int argc, char* argv[]){
 			bytes = recvfrom(sock, response_buf, MAX_DNS_SIZE, 0, (struct sockaddr*)&response, &sockaddr_size);
 			if (bytes ==SOCKET_ERROR) {
 				cout<<"Recvfrom Error: " << WSAGetLastError() << endl;
+				return 0;
 			}
+			
 			// check if this packet came from the server to which we sent the query earlier
 			if (response.sin_addr.s_addr != remote.sin_addr.s_addr || response.sin_port != remote.sin_port) {
 				cout << "Bogus reply: compaining\n";
@@ -662,6 +478,10 @@ int main(int argc, char* argv[]){
 
 
 			printf("response in %d ms with %d bytes\n", response_time, bytes);
+			if (bytes < sizeof(FixedDNSheader)) {
+				cout << "\t\t++\t invalid reply: packet smaller than fixed DNS header\n";
+				return 0;
+			}
 			printf("\tTXID 0x%.4X flags 0x%.4X questions %d answers %d authority %d additional %d\n", htons(fdh_response->ID), htons(fdh_response->flags), (int)htons(fdh_response-> questions), (int)htons(fdh_response-> answers), (int)htons(fdh_response-> authority), (int)htons(fdh_response->additional));
 			
 
@@ -670,16 +490,27 @@ int main(int argc, char* argv[]){
 			}
 			/*int currPos = parseQuestions(tracker, input_hostname, fdh);
 			tracker += currPos;*/
-			tracker = parseQuestions(response_buf, tracker, fdh_response);
-			//tracker += pkt_size - sizeof(FixedDNSheader)+1;
-			for (int i = 0; i < 24; i++) {
-				printf("tracker[%d] = %.2X\n", i, tracker[i]);
-			}
-			/*currPos = parseAnswers(tracker, response_buf, fdh_response, bytes);
-			tracker += currPos;
-			printf("tracker = %X\n", tracker);
+			
 
-			currPos = parseAuthority(tracker, response_buf, fdh_response, bytes);*/
+			tracker = parseQuestions(response_buf, tracker, fdh_response, bytes);
+			//tracker += pkt_size - sizeof(FixedDNSheader)+1;
+			
+			tracker = parseRR(response_buf, tracker, fdh_response, "answers", bytes);
+			if (tracker == nullptr) {
+				return 0;
+			}
+			tracker = parseRR(response_buf, tracker, fdh_response, "authority", bytes);
+			if (tracker == nullptr) {
+				return 0;
+			}
+			tracker = parseRR(response_buf, tracker, fdh_response, "additional", bytes);
+			if (tracker == nullptr) {
+				return 0;
+			}
+			
+			//printf("tracker = %X\n", tracker);
+
+			//currPos = parseAuthority(tracker, response_buf, fdh_response, bytes);
 
 			//currPos = parseAnswers(response, currPos);
 				// parse questions and arrive to the answer section
@@ -690,6 +521,10 @@ int main(int argc, char* argv[]){
 			
 
 			break;
+		}
+		else if (available < 0) {
+			printf("failed with %d on recv\n", WSAGetLastError());
+			return 0;
 		}
 		// error checking here
 		cout << " timeout in 10000 ms" << endl;

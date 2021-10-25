@@ -1,0 +1,11 @@
+Lookup:    random1.irl
+Query:     random1.irl, type 1, TXID 0x0261
+Server:    127.0.0.1
+********************************
+Attempt 1 with 29 bytes...response in 1 ms with 468 bytes
+	TXID 0x0261 flags 0x8600 questions 1 answers 1 authority 0 additional 65535
+	succeeded with Rcode = 0
+	============ [questions] ============
+		random1.irl type 1 class 1
+	============ [answers] ============
+	++invalid record: RR value length beyond packet

@@ -1,0 +1,17 @@
+Lookup:    random3.irl
+Query:     random3.irl, type 1, TXID 0x016C
+Server:    127.0.0.1
+********************************
+Attempt 1 with 29 bytes...response in 1 ms with 8 bytes
+++	 invalid reply: packet smaller than fixed DNS header
+Lookup:    random0.irl
+Query:     random0.irl, type 1, TXID 0x0242
+Server:    127.0.0.1
+********************************
+Attempt 1 with 29 bytes...response in 1 ms with 82 bytes
+	TXID 0x0242 flags 0x8400 questions 1 answers 2 authority 0 additional 0
+	succeeded with Rcode = 0
+	============ [questions] ============
+		random0.irl type 1 class 1
+	============ [answers] ============
+++	invalid record: jump into fixed header

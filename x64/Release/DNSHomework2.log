@@ -1,0 +1,12 @@
+﻿  DNSHomework2.cpp
+C:\Users\austi\Google Drive\DNSHomework2\DNSHomework2.cpp(118,40): warning C4267: '=': conversion from 'size_t' to 'char', possible loss of data
+C:\Users\austi\Google Drive\DNSHomework2\DNSHomework2.cpp(121,36): warning C4267: '+=': conversion from 'size_t' to 'int', possible loss of data
+C:\Users\austi\Google Drive\DNSHomework2\DNSHomework2.cpp(127,84): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+C:\Users\austi\Google Drive\DNSHomework2\DNSHomework2.cpp(133,12): warning C4244: 'argument': conversion from 'time_t' to 'unsigned int', possible loss of data
+C:\Users\austi\Google Drive\DNSHomework2\DNSHomework2.cpp(392,90): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+  Generating code
+  4 of 208 functions ( 1.9%) were compiled, the rest were copied from previous compilation.
+    0 functions were new in current compilation
+    1 functions had inline decision re-evaluated but remain unchanged
+  Finished generating code
+  DNSHomework2.vcxproj -> C:\Users\austi\Google Drive\DNSHomework2\x64\Release\DNSHomework2.exe

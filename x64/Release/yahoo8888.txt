@@ -1,0 +1,15 @@
+Lookup:    www.yahoo.com
+Query:     www.yahoo.com, type 1, TXID 0x03C5
+Server:    8.8.8.8
+********************************
+Attempt 1 with 31 bytes...response in 11 ms with 127 bytes
+	TXID 0x03C5 flags 0x8180 questions 1 answers 5 authority 0 additional 0
+	succeeded with Rcode = 0
+	============ [questions] ============
+		www.yahoo.com type 1 class 1
+	============ [answers] ============
+		www.yahoo.com CNAME new-fp-shed.wg1.b.yahoo.com TTL = 0
+		new-fp-shed.wg1.b.yahoo.com A 74.6.231.20 TTL = 0
+		new-fp-shed.wg1.b.yahoo.com A 74.6.231.21 TTL = 0
+		new-fp-shed.wg1.b.yahoo.com A 74.6.143.25 TTL = 0
+		new-fp-shed.wg1.b.yahoo.com A 74.6.143.26 TTL = 0
